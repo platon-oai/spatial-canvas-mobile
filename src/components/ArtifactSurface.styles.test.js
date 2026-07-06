@@ -6,6 +6,7 @@ const app = readFileSync(new URL("../App.jsx", import.meta.url), "utf8");
 const documentSurface = readFileSync(new URL("./DocumentAssetSurface.jsx", import.meta.url), "utf8");
 const itemCard = readFileSync(new URL("./ItemCard.jsx", import.meta.url), "utf8");
 const sharedViewer = readFileSync(new URL("./SharedItemViewer.jsx", import.meta.url), "utf8");
+const chrome = readFileSync(new URL("./Chrome.jsx", import.meta.url), "utf8");
 const overlay = readFileSync(new URL("./ArtifactTitleOverlay.jsx", import.meta.url), "utf8");
 
 function rulesFor(selector) {
@@ -138,6 +139,27 @@ describe("full-bleed artifact surfaces", () => {
   it("keeps the stage and retained surface solid white in every phase", () => {
     expect(documentSurface.match(/backgroundColor: "#fff"/g)).toHaveLength(2);
     expect(rulesFor(".document-asset-frame")).toContain("background: #fff");
+  });
+
+  it("integrates the app back action into the pinned Office header", () => {
+    expect(app).toContain("integratedDetailHeader={integratedDetailHeader}");
+    expect(chrome).toContain("integratedDetailHeader = false");
+    expect(chrome).toContain("is-integrated-detail-header");
+    expect(documentSurface).toContain('"--office-leading-slot"');
+    expect(documentSurface).toContain("platformBridge.isElectron");
+
+    const header = rulesFor(".chrome-top-left.is-integrated-detail-header");
+    expect(header).toContain("top: 0");
+    expect(header).toContain("height: 52px");
+    const back = rulesFor(".chrome-top-left.is-integrated-detail-header .back-button");
+    expect(back).toContain("border-radius: 0");
+    expect(back).toContain("box-shadow: none");
+  });
+
+  it("fits mobile slide streams by width instead of viewport height", () => {
+    expect(documentSurface).toContain("const compact = frame.clientWidth <= 760");
+    expect(documentSurface).toContain('format === "pptx"');
+    expect(documentSurface).toContain("compact\n              ? maximumScale");
   });
 
   it("reveals the frame only when ready and gates pointer input consistently", () => {

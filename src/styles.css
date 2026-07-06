@@ -848,6 +848,49 @@ button:focus-visible,
   border-radius: 50%;
 }
 
+/* Office readers bring their own pinned header. In detail, the app back
+   action becomes the leading control in that same flat bar instead of a
+   floating circular button layered over the document title. */
+.chrome-top-left.is-integrated-detail-header {
+  top: 0;
+  left: 0;
+  height: 52px;
+  gap: 0;
+}
+
+.chrome-top-left.is-integrated-detail-header > div {
+  display: flex;
+  height: 100%;
+  align-items: center;
+}
+
+.chrome-top-left.is-integrated-detail-header .back-button {
+  width: 64px;
+  min-width: 64px;
+  height: 52px;
+  border-bottom: 1px solid #e8e9e7;
+  border-radius: 0;
+  color: #242728;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.chrome-top-left.is-integrated-detail-header .back-button:hover {
+  background: #f6f7f5;
+  transform: none;
+}
+
+.chrome-top-left.is-integrated-detail-header .back-button:active {
+  background: #eff1ee;
+  transform: none;
+}
+
+.spatial-app.is-electron .chrome-top-left.is-integrated-detail-header {
+  left: 98px;
+}
+
 .add-button {
   border-radius: 50%;
 }
@@ -1863,6 +1906,18 @@ button:focus-visible,
   .chrome-top-left {
     top: max(12px, calc(env(safe-area-inset-top) + 8px));
     left: max(12px, calc(env(safe-area-inset-left) + 8px));
+  }
+
+  .chrome-top-left.is-integrated-detail-header {
+    top: 0;
+    left: 0;
+    height: 46px;
+  }
+
+  .chrome-top-left.is-integrated-detail-header .back-button {
+    width: 64px;
+    min-width: 64px;
+    height: 46px;
   }
 
   .chrome-top-right {
@@ -3254,8 +3309,7 @@ button:focus-visible,
   overflow: hidden;
 }
 
-.world-item.is-detail-open .shared-item-viewer.is-detail-ready .item-document,
-.world-item.is-detail-open .shared-item-viewer.is-detail-ready .item-note {
+.world-item.is-detail-open .shared-item-viewer.is-detail-ready :is(.item-document, .item-note) {
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -3264,8 +3318,7 @@ button:focus-visible,
   -webkit-overflow-scrolling: touch;
 }
 
-.world-item.is-detail-open .shared-item-viewer.is-detail-ready .item-document::-webkit-scrollbar,
-.world-item.is-detail-open .shared-item-viewer.is-detail-ready .item-note::-webkit-scrollbar {
+.world-item.is-detail-open .shared-item-viewer.is-detail-ready :is(.item-document, .item-note)::-webkit-scrollbar {
   display: none;
   width: 0;
   height: 0;
@@ -3842,12 +3895,26 @@ button:focus-visible,
   box-shadow: 0 9px 28px rgba(15, 18, 19, 0.14);
 }
 
-.world-item.is-detail-open .item-document:has(.document-asset-stage),
-.world-item.is-detail-open .item-web:has(.shared-web-stage) {
+.world-item.is-detail-open .item-document:has(.document-asset-stage) {
   overflow: hidden;
   overscroll-behavior: none;
   touch-action: none;
   -webkit-overflow-scrolling: auto;
+}
+
+.world-item.is-detail-open .shared-item-viewer.is-detail-ready .item-web:has(.shared-web-stage) {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+.world-item.is-detail-open .shared-item-viewer.is-detail-ready .item-web:has(.shared-web-stage)::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 @media (max-width: 640px), (pointer: coarse) {

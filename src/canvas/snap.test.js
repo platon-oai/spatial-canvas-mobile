@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { dragWithSnapping, resizeWithSnapping } from "./snap.js";
+import {
+  createSnapTargetIndex,
+  dragWithSnapping,
+  resizeWithSnapping,
+} from "./snap.js";
 
 const start = { x: 0, y: 0, width: 100, height: 100 };
 
@@ -146,5 +150,34 @@ describe("dragWithSnapping", () => {
 
     expect(result.changes).toEqual([{ id: "moving", x: 5, y: 0 }]);
     expect(result.guides).toEqual([]);
+  });
+
+  it("keeps per-frame candidate work local on a large sparse board", () => {
+    const targets = Array.from({ length: 20_000 }, (_, index) => ({
+      id: `target-${index}`,
+      x: index * 2_000,
+      y: index * -2_000,
+      width: 120,
+      height: 80,
+    }));
+    const nearby = targets[12_345];
+    const targetIndex = createSnapTargetIndex(targets);
+
+    const result = dragWithSnapping(
+      [{
+        id: "moving",
+        x: nearby.x - 220,
+        y: nearby.y,
+        width: 100,
+        height: 80,
+      }],
+      { x: 119, y: 0 },
+      targetIndex,
+      { threshold: 8, proximity: 360 },
+    );
+
+    expect(result.changes[0].x).toBe(nearby.x - 100);
+    expect(targetIndex.lastQueryStats.candidatesTested).toBeLessThanOrEqual(2);
+    expect(targetIndex.lastQueryStats.returned).toBeLessThanOrEqual(2);
   });
 });

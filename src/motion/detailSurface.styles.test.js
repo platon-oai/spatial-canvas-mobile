@@ -109,7 +109,41 @@ describe("settled mobile detail surface", () => {
     expect(app).toContain('viewport.querySelector(');
     expect(app).toContain('[data-detail-scroll-region="true"] > :is(.item-document, .item-note, .item-web)');
     expect(app).toContain('scrollFullscreenDetail(detailScrollHost, deltaX, deltaY)');
+    expect(app).toContain('host?.querySelector?.(".shared-document-stage, .shared-web-stage")');
+    expect(app).toContain("const horizontalDelta = locksHorizontalScroll ? 0 : deltaX");
+    expect(app).toContain("if (locksHorizontalScroll && host.scrollLeft) host.scrollLeft = 0");
+    expect(app).toContain('host?.scrollBy?.({ left: horizontalDelta, top: deltaY, behavior: "auto" })');
     expect(app).toContain('querySelector?.(".office-reader-layer")');
     expect(app).toContain('officeReader.scrollBy({ left: deltaX, top: deltaY, behavior: "auto" })');
+  });
+
+  it("keeps authored and web detail surfaces vertical-only while imported artifacts own both axes", () => {
+    const authoredEditor = lastRule(
+      ".world-item.is-detail-open .shared-item-viewer.is-detail-ready :is(.item-document, .item-note)",
+    );
+    expect(authoredEditor).toContain("overflow-x: hidden");
+    expect(authoredEditor).toContain("overflow-y: auto");
+    expect(authoredEditor).toContain("touch-action: pan-y");
+
+    const webClip = lastRule(
+      ".world-item.is-detail-open .shared-item-viewer.is-detail-ready .item-web:has(.shared-web-stage)",
+    );
+    expect(webClip).toContain("overflow-x: hidden");
+    expect(webClip).toContain("overflow-y: auto");
+    expect(webClip).toContain("touch-action: pan-y");
+
+    const importedArtifact = lastRule(
+      ".world-item.is-detail-open .item-document:has(.document-asset-stage)",
+    );
+    expect(importedArtifact).toContain("overflow: hidden");
+    expect(importedArtifact).toContain("touch-action: none");
+  });
+
+  it("uses a 35 percent stronger wheel zoom without changing anchor or touch routing", () => {
+    expect(app).toContain("const WHEEL_ZOOM_SENSITIVITY = 0.00459");
+    expect(app).toContain("sensitivity: WHEEL_ZOOM_SENSITIVITY");
+    expect(app).toContain("point: pointInViewport(event, viewport, viewportRectRef.current)");
+    expect(app).toContain("updateTouchCameraGesture(touchCameraGestureRef.current, touchPair(), {");
+    expect(app).toContain("startCamera.zoom * (event.scale || 1)");
   });
 });

@@ -16,6 +16,115 @@ function targetRecord(target) {
   };
 }
 
+const DEFAULT_SNAP_INDEX_CELL_SIZE = 512;
+const DEFAULT_MAX_CELLS_PER_TARGET = 256;
+const DEFAULT_MAX_QUERY_CELLS = 4_096;
+
+function snapCellKey(x, y) {
+  return `${x}:${y}`;
+}
+
+function snapCellRange(rect, cellSize, padding = 0) {
+  return {
+    minX: Math.floor((rect.x - padding) / cellSize),
+    maxX: Math.floor((rect.x + rect.width + padding) / cellSize),
+    minY: Math.floor((rect.y - padding) / cellSize),
+    maxY: Math.floor((rect.y + rect.height + padding) / cellSize),
+  };
+}
+
+/**
+ * Build the immutable snap-target lookup used for one drag/resize gesture.
+ *
+ * Snapping used to normalize and scan every canvas item on every pointer
+ * frame. The gesture snapshot is already fixed at pointer-down, so indexing
+ * it once makes per-frame work proportional to nearby items instead. Very
+ * large targets use a small fallback list to avoid populating thousands of
+ * grid cells for a single object.
+ */
+export function createSnapTargetIndex(
+  targets,
+  {
+    cellSize = DEFAULT_SNAP_INDEX_CELL_SIZE,
+    maxCellsPerTarget = DEFAULT_MAX_CELLS_PER_TARGET,
+    maxQueryCells = DEFAULT_MAX_QUERY_CELLS,
+  } = {},
+) {
+  const safeCellSize = Math.max(1, Number(cellSize) || DEFAULT_SNAP_INDEX_CELL_SIZE);
+  const cells = new Map();
+  const largeTargets = [];
+  const records = targets.map(targetRecord);
+  let lastQueryStats = {
+    cellsVisited: 0,
+    candidatesTested: 0,
+    returned: 0,
+  };
+
+  for (const record of records) {
+    const range = snapCellRange(record.rect, safeCellSize);
+    const cellCount = (range.maxX - range.minX + 1) * (range.maxY - range.minY + 1);
+    if (cellCount > maxCellsPerTarget) {
+      largeTargets.push(record);
+      continue;
+    }
+    for (let x = range.minX; x <= range.maxX; x += 1) {
+      for (let y = range.minY; y <= range.maxY; y += 1) {
+        const key = snapCellKey(x, y);
+        const bucket = cells.get(key);
+        if (bucket) bucket.push(record);
+        else cells.set(key, [record]);
+      }
+    }
+  }
+
+  return {
+    get size() {
+      return records.length;
+    },
+    get lastQueryStats() {
+      return lastQueryStats;
+    },
+    queryNearby(movingRect, movingIds, worldProximity) {
+      const range = snapCellRange(movingRect, safeCellSize, worldProximity);
+      const candidates = new Map();
+      let cellsVisited = 0;
+      const queryCellCount = (range.maxX - range.minX + 1) * (range.maxY - range.minY + 1);
+      if (queryCellCount > maxQueryCells) {
+        // A selection whose members are extremely far apart can have a huge
+        // union rectangle. A bounded linear fallback is safer than walking
+        // millions of empty cells in that pathological case.
+        for (const record of records) candidates.set(record.id, record);
+      } else {
+        for (let x = range.minX; x <= range.maxX; x += 1) {
+          for (let y = range.minY; y <= range.maxY; y += 1) {
+            cellsVisited += 1;
+            const bucket = cells.get(snapCellKey(x, y));
+            if (!bucket) continue;
+            for (const record of bucket) candidates.set(record.id, record);
+          }
+        }
+      }
+      for (const record of largeTargets) candidates.set(record.id, record);
+
+      const references = [];
+      let candidatesTested = 0;
+      for (const record of candidates.values()) {
+        if (movingIds.has(record.id)) continue;
+        candidatesTested += 1;
+        if (rectGapDistance(movingRect, record.rect) <= worldProximity) {
+          references.push(record);
+        }
+      }
+      lastQueryStats = {
+        cellsVisited,
+        candidatesTested,
+        returned: references.length,
+      };
+      return references;
+    },
+  };
+}
+
 function nearestCandidate(candidates, threshold) {
   const priority = { edge: 0, width: 1, height: 1 };
   let nearest = null;
@@ -42,6 +151,9 @@ function rectGapDistance(a, b) {
 }
 
 function nearbyTargetRecords(targets, movingRect, movingIds, worldProximity) {
+  if (typeof targets?.queryNearby === "function") {
+    return targets.queryNearby(movingRect, movingIds, worldProximity);
+  }
   const references = [];
   for (const target of targets) {
     if (movingIds.has(target.id)) continue;
@@ -306,7 +418,7 @@ export function dragWithSnapping(
   } = {},
 ) {
   const moving = movingItems.map(targetRecord);
-  const movingIds = new Set(excludeIds);
+  const movingIds = excludeIds instanceof Set ? excludeIds : new Set(excludeIds);
   const startRect = unionRects(moving.map((item) => item.rect));
   if (!startRect) {
     return { changes: [], rect: null, unsnappedRect: null, ...EMPTY_SNAP_RESULT };

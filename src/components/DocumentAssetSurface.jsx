@@ -2,6 +2,7 @@ import { FileText } from "@phosphor-icons/react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { renderOfficeDocument } from "../import/renderOfficeDocument.js";
+import { platformBridge } from "../platform/index.js";
 import { ArtifactTitleOverlay } from "./ArtifactTitleOverlay.jsx";
 import { inspectIframeBottomTone } from "./artifactTone.js";
 
@@ -134,6 +135,12 @@ export function DocumentAssetSurface({
     root.dataset.documentLayout = layout;
     root.dataset.interactive = interactive ? "true" : "false";
     root.dataset.detailShell = detailShellActive ? "true" : "false";
+    root.style.setProperty(
+      "--office-leading-slot",
+      platformBridge.isElectron
+        ? "164px"
+        : "max(76px, calc(env(safe-area-inset-left) + 68px))",
+    );
     root.style.setProperty("--office-preview-scale", String(retainedPreviewScale));
   }, [assetMotion?.detailPreviewScale, assetMotion?.scale, desiredViewMode, detailShellActive, format, interactive, isGoogle, layout]);
 
@@ -156,7 +163,9 @@ export function DocumentAssetSurface({
           maximumScale,
           Math.max(0.1, availableWidth) / Math.max(1, baseWidth),
           format === "pptx"
-            ? Math.max(0.1, availableHeight) / Math.max(1, baseHeight)
+            ? compact
+              ? maximumScale
+              : Math.max(0.1, availableHeight) / Math.max(1, baseHeight)
             : maximumScale,
         )
       : 1;
@@ -179,11 +188,17 @@ export function DocumentAssetSurface({
   useEffect(() => {
     const frame = documentFrameRef.current;
     if (!frame || isGoogle) return undefined;
-    if (!surfaceReady || typeof ResizeObserver === "undefined") return undefined;
+    // Board cards always use the authored preview scale. Observing every
+    // visible Office iframe added a resize callback per card during canvas
+    // pan/zoom even though their page scale could not change. The fullscreen
+    // shell is the only layout whose available reader bounds are responsive.
+    if (!detailShellActive || !surfaceReady || typeof ResizeObserver === "undefined") {
+      return undefined;
+    }
     const observer = new ResizeObserver(() => syncDocumentPageScale(frame));
     observer.observe(frame);
     return () => observer.disconnect();
-  }, [isGoogle, srcDoc, surfaceReady, syncDocumentPageScale]);
+  }, [detailShellActive, isGoogle, srcDoc, surfaceReady, syncDocumentPageScale]);
 
   const frameTitle = item.title || item.fileName || (isGoogle ? "Google document" : "Imported document");
 

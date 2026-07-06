@@ -8,7 +8,7 @@ const PREVIEW_GEOMETRY = Object.freeze({
 
 const sharedDocumentCss = `
   * { box-sizing: border-box; }
-  :root { color-scheme: light; background: #fff; }
+  :root { --office-leading-slot: max(76px, calc(env(safe-area-inset-left) + 68px)); color-scheme: light; background: #fff; }
   html, body { width: 100%; height: 100%; min-height: 100%; margin: 0; color: #151718; background: #fff; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
   body { overflow: hidden; scrollbar-width: none; }
   body::-webkit-scrollbar { display: none; width: 0; height: 0; }
@@ -148,7 +148,7 @@ async function renderDocx(asset) {
     .docx-preview-page > section.docx, .docx-preview-page section.docx { margin: 0 !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important; transform: scale(var(--docx-preview-scale, 1)); transform-origin: 0 0; }
 
     .docx-reader { width: 100%; min-height: 100vh; padding-bottom: 112px; background: #fff; }
-    .docx-toolbar { position: sticky; z-index: 20; top: 0; display: flex; align-items: center; justify-content: space-between; min-height: 52px; padding: 0 20px; border-bottom: 1px solid #e8e9e7; color: #5f6364; background: rgba(255,255,255,.97); }
+    .docx-toolbar { position: sticky; z-index: 20; top: 0; display: flex; align-items: center; justify-content: space-between; min-height: 52px; padding: 0 20px 0 var(--office-leading-slot); border-bottom: 1px solid #e8e9e7; color: #5f6364; background: rgba(255,255,255,.97); }
     .office-file-identity { display: flex; min-width: 0; align-items: baseline; gap: 10px; }
     .office-file-identity strong { overflow: hidden; color: #202223; font-size: 14px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
     .office-file-identity span, .docx-page-count { color: #8a8e8f; font-size: 12px; font-weight: 500; letter-spacing: .02em; }
@@ -157,7 +157,7 @@ async function renderDocx(asset) {
     .docx-pages > :not(section.docx) { width: min(816px, 100%); background: #fff; }
 
     @media (max-width: 760px) {
-      .docx-toolbar { min-height: 46px; padding-inline: 14px; }
+      .docx-toolbar { min-height: 46px; padding-right: 14px; padding-left: var(--office-leading-slot); }
       .docx-pages { gap: 14px; padding: 16px 8px 96px; }
       .docx-pages > section.docx { box-shadow: 0 1px 2px rgba(23, 27, 25, .05) !important; }
     }
@@ -266,7 +266,11 @@ async function renderPptx(asset) {
       <span class="ppt-thumbnail-number">${index + 1}</span>
       <span class="ppt-thumbnail-viewport"><span class="ppt-thumbnail-slide">${prefixMarkupIds(slide, `ppt-thumb-${index}-`)}</span></span>
     </label>`).join("");
-  const panels = slides.map((slide, index) => `<section class="ppt-slide-panel" data-slide-index="${index}" aria-label="Slide ${index + 1}"><div class="ppt-slide-frame"><div class="ppt-slide-visual">${prefixMarkupIds(slide, `ppt-panel-${index}-`)}</div></div></section>`).join("");
+  const panels = slideEntries.map(({ html: slide, notes }, index) => `
+    <section class="ppt-slide-panel" data-slide-index="${index}" aria-label="Slide ${index + 1}">
+      <div class="ppt-slide-frame"><div class="ppt-slide-visual">${prefixMarkupIds(slide, `ppt-panel-${index}-`)}</div></div>
+      <div class="ppt-mobile-notes" aria-label="Speaker notes for slide ${index + 1}"><span>Speaker notes</span><p>${escapeHtml(notes || "No speaker notes")}</p></div>
+    </section>`).join("");
   const notesPanels = slideEntries.map(({ notes }, index) => `<section class="ppt-notes-panel" data-slide-index="${index}" aria-label="Speaker notes for slide ${index + 1}"><span>Speaker notes</span><p>${escapeHtml(notes || "No speaker notes")}</p></section>`).join("");
   const currentSlides = slides.map((_, index) => `<span class="ppt-current-slide" data-slide-index="${index}">${index + 1}</span>`).join("");
   const activeSelectors = slides.map((_, index) => `
@@ -300,7 +304,7 @@ async function renderPptx(asset) {
     .ppt-preview-slide > * { margin: 0 !important; }
 
     .ppt-reader, .ppt-shell { width: 100%; height: 100%; min-height: 100%; background: #fff; }
-    .ppt-toolbar { position: sticky; z-index: 10; top: 0; display: flex; align-items: center; justify-content: space-between; min-height: 52px; padding: 0 20px; border-bottom: 1px solid #e8e9e7; background: rgba(255,255,255,.98); }
+    .ppt-toolbar { position: sticky; z-index: 10; top: 0; display: flex; align-items: center; justify-content: space-between; min-height: 52px; padding: 0 20px 0 var(--office-leading-slot); border-bottom: 1px solid #e8e9e7; background: rgba(255,255,255,.98); }
     .office-file-identity { display: flex; min-width: 0; align-items: baseline; gap: 10px; }
     .office-file-identity strong { overflow: hidden; color: #202223; font-size: 14px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
     .office-file-identity span, .ppt-position { color: #85898a; font-size: 12px; font-weight: 500; }
@@ -314,29 +318,31 @@ async function renderPptx(asset) {
     .ppt-thumbnail-viewport { display: block; width: 160px; height: 90px; overflow: hidden; border: 1px solid #e0e3df; border-radius: 3px; background: #fff; box-shadow: 0 2px 8px rgba(22, 27, 25, .05); }
     .ppt-thumbnail-slide { display: block; width: 960px; height: 540px; transform: scale(.1666667); transform-origin: 0 0; pointer-events: none; }
     .ppt-thumbnail-slide > * { margin: 0 !important; }
-    .ppt-stage { display: grid; min-width: 0; min-height: calc(100vh - 52px); justify-items: center; align-content: start; gap: 28px; overflow: visible; padding: 48px 36px 120px; background: #fff; scrollbar-width: none; }
+    .ppt-stage { display: grid; min-width: 0; min-height: calc(100vh - 52px); justify-items: center; align-content: start; gap: 16px; overflow: visible; padding: 24px 36px 32px; background: #fff; scrollbar-width: none; }
     .ppt-stage::-webkit-scrollbar { display: none; }
-    .ppt-slide-stack { display: grid; place-items: center; width: 100%; min-height: calc(540px * var(--document-page-scale, 1)); }
-    .ppt-slide-panel { display: none; grid-area: 1 / 1; }
+    .ppt-slide-stack { display: grid; place-items: center; width: 100%; min-height: max(calc(540px * var(--document-page-scale, 1)), calc(100vh - 260px)); }
+    .ppt-slide-panel { display: none; grid-area: 1 / 1; justify-self: center; }
     .ppt-slide-frame { position: relative; width: 960px; height: 540px; overflow: hidden; border: 1px solid #dfe2df; border-radius: 4px; background: #fff; box-shadow: 0 10px 28px rgba(21, 26, 24, .075); zoom: var(--document-page-scale, 1); }
     .ppt-slide-visual { position: relative; width: 960px; height: 540px; overflow: hidden; background: #fff; }
     .ppt-slide-visual > * { margin: 0 !important; }
     .slide-container { background-color: #fff !important; }
     .ppt-notes { width: min(960px, 100%); min-height: 136px; padding: 20px 22px; border: 1px solid #e3e5e2; border-radius: 12px; background: #fff; }
     .ppt-notes-panel { display: none; }
+    .ppt-mobile-notes { display: none; }
     .ppt-notes span { color: #696d6e; font-size: 12px; font-weight: 600; }
     .ppt-notes p { margin: 18px 0 0; color: #777b7c; font-size: 13px; line-height: 1.5; }
     ${activeSelectors}
 
     @media (max-width: 760px) {
-      .ppt-toolbar { min-height: 46px; padding-inline: 14px; }
+      .ppt-toolbar { min-height: 46px; padding: 0 14px 0 var(--office-leading-slot); }
+      .ppt-thumbnails, .ppt-notes { display: none; }
       .ppt-workspace { display: block; min-height: calc(100vh - 46px); }
-      .ppt-thumbnails { top: 46px; z-index: 8; height: auto; max-height: 94px; flex-direction: row; overflow-x: auto; overflow-y: hidden; padding: 12px 14px; border-right: 0; border-bottom: 1px solid #eceeeb; }
-      .ppt-thumbnail { flex: 0 0 auto; grid-template-columns: 18px 120px; }
-      .ppt-thumbnail-viewport { width: 120px; height: 67.5px; }
-      .ppt-thumbnail-slide { transform: scale(.125); }
-      .ppt-stage { min-height: calc(100vh - 140px); gap: 18px; padding: 20px 8px 96px; }
-      .ppt-notes { min-height: 108px; border-radius: 8px; }
+      .ppt-stage { display: block; min-height: calc(100vh - 46px); padding: 18px 8px 96px; }
+      .ppt-slide-stack { display: grid; min-height: 0; gap: 18px; place-items: center; }
+      .ppt-slide-panel { display: grid !important; grid-area: auto; width: 100%; justify-items: center; gap: 10px; }
+      .ppt-mobile-notes { display: block; width: min(960px, 100%); padding: 12px 14px; border: 1px solid #eceeeb; border-radius: 6px; background: #fff; }
+      .ppt-mobile-notes span { color: #696d6e; font-size: 11px; font-weight: 600; }
+      .ppt-mobile-notes p { margin: 7px 0 0; color: #777b7c; font-size: 12px; line-height: 1.45; }
     }
   `;
   const srcDoc = htmlDocument({ title: asset.name, body: officeLayers(preview, reader), css });
@@ -632,7 +638,7 @@ async function renderXlsx(asset) {
   const css = `
     .workbook-preview { width: 1100px; height: 760px; overflow: hidden; background: #fff; }
     .workbook-reader, .workbook-shell { width: 100%; min-width: 100%; min-height: 100%; background: #fff; }
-    .workbook-header { position: sticky; z-index: 20; top: 0; left: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; width: 100vw; min-width: 100vw; min-height: 48px; border-bottom: 1px solid #e5e7e4; background: rgba(255,255,255,.98); }
+    .workbook-header { position: sticky; z-index: 20; top: 0; left: 0; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; width: 100vw; min-width: 100vw; min-height: 48px; padding-left: var(--office-leading-slot); border-bottom: 1px solid #e5e7e4; background: rgba(255,255,255,.98); }
     .office-file-identity { display: flex; min-width: 220px; align-items: baseline; gap: 10px; padding: 0 18px; border-right: 1px solid #eceeeb; }
     .office-file-identity strong { overflow: hidden; max-width: 220px; color: #202223; font-size: 14px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
     .office-file-identity span, .workbook-zoom { color: #898d8e; font-size: 12px; font-weight: 500; }

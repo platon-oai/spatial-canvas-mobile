@@ -44,7 +44,7 @@ describe("Office document rendering contract", () => {
   });
 
   it("keeps the retained viewer and both layers on a uniform white surface", () => {
-    expect(sharedViewer).toContain(':root { color-scheme: light; background: #fff; }');
+    expect(sharedViewer).toMatch(/:root \{[^}]*color-scheme: light;[^}]*background: #fff; \}/);
     expect(sharedViewer).toMatch(/html, body \{[^}]*background: #fff/);
     expect(sharedViewer).toMatch(/\.office-viewer \{[^}]*background: #fff/);
     expect(sharedViewer).toMatch(/\.office-layer \{[^}]*background: #fff/);
@@ -52,6 +52,13 @@ describe("Office document rendering contract", () => {
     expect(pptxRenderer).toContain("background: #fff");
     expect(xlsxRenderer).toContain("background: #fff");
     expect(source).not.toContain("background: transparent");
+  });
+
+  it("reserves a native leading header slot for the app back control", () => {
+    expect(sharedViewer).toContain("--office-leading-slot: max(76px, calc(env(safe-area-inset-left) + 68px))");
+    expect(docxRenderer).toMatch(/\.docx-toolbar \{[^}]*padding: 0 20px 0 var\(--office-leading-slot\)/);
+    expect(pptxRenderer).toMatch(/\.ppt-toolbar \{[^}]*padding: 0 20px 0 var\(--office-leading-slot\)/);
+    expect(xlsxRenderer).toMatch(/\.workbook-header \{[^}]*padding-left: var\(--office-leading-slot\)/);
   });
 
   it("changes retained preview/reader mode with opacity only", () => {
@@ -100,7 +107,7 @@ describe("Office document rendering contract", () => {
     expect(xlsxRenderer).toMatch(/table \{[^}]*min-width: 100%;/);
   });
 
-  it("renders PPTX with functional thumbnail selection, a centered stage, and notes", () => {
+  it("renders PPTX as a centered desktop deck with a responsive all-slide stream", () => {
     expect(source).toContain("async function presentationSlideEntries");
     expect(source).toContain('endsWith("/notesSlide")');
     expect(source).toContain("finalPaths.map(async (path)");
@@ -109,10 +116,18 @@ describe("Office document rendering contract", () => {
     expect(pptxRenderer).toContain('<nav class="ppt-thumbnails" aria-label="Presentation slides">');
     expect(pptxRenderer).toContain('#ppt-slide-${index}:checked ~ .ppt-shell .ppt-slide-panel[data-slide-index="${index}"]');
     expect(pptxRenderer).toContain('#ppt-slide-${index}:checked ~ .ppt-shell .ppt-thumbnail[data-slide-index="${index}"]');
+    expect(pptxRenderer).toContain('class="ppt-mobile-notes" aria-label="Speaker notes for slide ${index + 1}"');
+    expect(pptxRenderer).toMatch(/\.ppt-workspace \{[^}]*grid-template-columns: 218px minmax\(0, 1fr\)/);
     expect(pptxRenderer).toMatch(/\.ppt-stage \{[^}]*justify-items: center;[^}]*align-content: start/);
     expect(pptxRenderer).toMatch(/\.ppt-slide-stack \{[^}]*place-items: center;[^}]*width: 100%/);
+    expect(pptxRenderer).toMatch(/\.ppt-slide-stack \{[^}]*min-height: max\(calc\(540px \* var\(--document-page-scale, 1\)\), calc\(100vh - 260px\)\)/);
+    expect(pptxRenderer).toMatch(/\.ppt-slide-panel \{[^}]*display: none;[^}]*justify-self: center/);
     expect(pptxRenderer).toContain('<div class="ppt-notes" aria-label="Speaker notes">');
     expect(pptxRenderer).toContain('class="ppt-notes-panel"');
     expect(pptxRenderer).toMatch(/\.ppt-notes \{[^}]*width: min\(960px, 100%\);[^}]*min-height: 136px/);
+    expect(pptxRenderer).toMatch(/@media \(max-width: 760px\) \{[\s\S]*?\.ppt-toolbar \{ min-height: 46px; padding: 0 14px 0 var\(--office-leading-slot\); \}/);
+    expect(pptxRenderer).toMatch(/@media \(max-width: 760px\) \{[\s\S]*?\.ppt-thumbnails, \.ppt-notes \{ display: none; \}/);
+    expect(pptxRenderer).toMatch(/@media \(max-width: 760px\) \{[\s\S]*?\.ppt-slide-stack \{[^}]*display: grid;[^}]*gap: 18px;[^}]*place-items: center/);
+    expect(pptxRenderer).toMatch(/@media \(max-width: 760px\) \{[\s\S]*?\.ppt-slide-panel \{ display: grid !important; grid-area: auto; width: 100%;/);
   });
 });

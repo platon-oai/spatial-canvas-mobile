@@ -1,7 +1,12 @@
 import { panCamera, screenToWorld, zoomCameraByWheel } from "./camera.js";
 import { itemRect, rectFromPoints, subtractPoints } from "./geometry.js";
 import { marqueeSelection } from "./selection.js";
-import { dragWithSnapping, EMPTY_SNAP_RESULT, resizeWithSnapping } from "./snap.js";
+import {
+  createSnapTargetIndex,
+  dragWithSnapping,
+  EMPTY_SNAP_RESULT,
+  resizeWithSnapping,
+} from "./snap.js";
 import { CANVAS_SNAP_CONFIG } from "./snapConfig.js";
 
 const noop = () => {};
@@ -216,7 +221,7 @@ export function createCanvasInteractionController({
           ...snap,
           enabled: dragSnappingEnabled(interaction, sample, frameTime, snap),
           zoom: interaction.camera.zoom,
-          excludeIds: interaction.items.map((item) => item.id),
+          excludeIds: interaction.itemIds,
         },
       );
       emitSnapHaptics(result.snaps);
@@ -367,7 +372,8 @@ export function createCanvasInteractionController({
       startPoint: point,
       camera: { ...snapshot.camera },
       items,
-      targets: snapshot.items.map((candidate) => ({ ...candidate })),
+      itemIds: new Set(items.map((item) => item.id)),
+      targets: createSnapTargetIndex(snapshot.items),
       item: items.find((item) => item.id === itemId) ?? items[0],
       snapKeys: { x: null, y: null },
     });
@@ -388,7 +394,7 @@ export function createCanvasInteractionController({
       camera: { ...snapshot.camera },
       item: { ...item },
       startRect: itemRect(item),
-      targets: snapshot.items.map((candidate) => ({ ...candidate })),
+      targets: createSnapTargetIndex(snapshot.items),
       handle,
       options,
       snapKeys: { x: null, y: null },
@@ -466,13 +472,26 @@ export function createCanvasInteractionController({
   }
 
   function wheelZoom({ point, deltaY, options = {} }) {
-    pendingWheel.push({ type: "zoom", point, deltaY, options });
+    const previous = pendingWheel[pendingWheel.length - 1];
+    const canCoalesce = previous?.type === "zoom"
+      && previous.point.x === point.x
+      && previous.point.y === point.y
+      && Object.keys(previous.options).length === 0
+      && Object.keys(options).length === 0;
+    if (canCoalesce) previous.deltaY += deltaY;
+    else pendingWheel.push({ type: "zoom", point, deltaY, options });
     schedule();
     return api;
   }
 
   function wheelPan({ deltaX = 0, deltaY = 0 }) {
-    pendingWheel.push({ type: "pan", deltaX, deltaY });
+    const previous = pendingWheel[pendingWheel.length - 1];
+    if (previous?.type === "pan") {
+      previous.deltaX += deltaX;
+      previous.deltaY += deltaY;
+    } else {
+      pendingWheel.push({ type: "pan", deltaX, deltaY });
+    }
     schedule();
     return api;
   }

@@ -32,6 +32,7 @@ export function IconButton({ label, active = false, className = "", children, ..
 
 export function AppChrome({
   detailOpen,
+  integratedDetailHeader = false,
   backLabel = "Back to board",
   onBack,
   onAdd,
@@ -52,18 +53,27 @@ export function AppChrome({
 }) {
   return (
     <div className="chrome-layer" aria-label="Spatial controls">
-      <motion.div className="chrome-top-left" layout>
+      <motion.div
+        className={`chrome-top-left ${integratedDetailHeader ? "is-integrated-detail-header" : ""}`}
+        layout
+      >
         <AnimatePresence initial={false} mode="popLayout">
           {detailOpen ? (
             <motion.div
               key="back"
-              initial={{ opacity: 0, scale: 0.82, x: -8 }}
+              initial={integratedDetailHeader
+                ? { opacity: 0, scale: 1, x: -5 }
+                : { opacity: 0, scale: 0.82, x: -8 }}
               animate={{ opacity: 1, scale: 1, x: 0 }}
-              exit={{ opacity: 0, scale: 0.82, x: -8 }}
-              transition={{ type: "spring", stiffness: 520, damping: 34 }}
+              exit={integratedDetailHeader
+                ? { opacity: 0, scale: 1, x: -5 }
+                : { opacity: 0, scale: 0.82, x: -8 }}
+              transition={integratedDetailHeader
+                ? { duration: 0.16, ease: [0.16, 1, 0.3, 1] }
+                : { type: "spring", stiffness: 520, damping: 34 }}
             >
               <IconButton label={backLabel} onClick={onBack} className="back-button">
-                <ArrowLeft {...iconProps} />
+                <ArrowLeft {...iconProps} size={integratedDetailHeader ? 18 : iconProps.size} />
               </IconButton>
             </motion.div>
           ) : (

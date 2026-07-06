@@ -76,7 +76,6 @@ export function WebPreview({ item, interactive = false, loadAsset, onScreenshotR
   useEffect(() => {
     let cancelled = false;
     let objectUrl = "";
-    let preloader = null;
     if (!assetId || typeof loadAsset !== "function") {
       setAssetPreview({ assetId, status: "none", url: "" });
       return undefined;
@@ -93,36 +92,17 @@ export function WebPreview({ item, interactive = false, loadAsset, onScreenshotR
           objectUrl = "";
           return;
         }
-        const markReady = () => {
-          if (cancelled) {
-            URL.revokeObjectURL(objectUrl);
-            objectUrl = "";
-            return;
-          }
-          setAssetPreview({ assetId, status: "ready", url: objectUrl });
-        };
-        if (typeof Image === "undefined") {
-          markReady();
-          return;
-        }
-        preloader = new Image();
-        preloader.onload = markReady;
-        preloader.onerror = () => {
-          if (objectUrl) URL.revokeObjectURL(objectUrl);
-          objectUrl = "";
-          if (!cancelled) setAssetPreview({ assetId, status: "missing", url: "" });
-        };
-        preloader.src = objectUrl;
+        // Let the retained DOM image perform the only decode. A separate
+        // `new Image()` probe decoded every cached screenshot twice, which
+        // became especially expensive when a page of web clips entered the
+        // overscan window together.
+        setAssetPreview({ assetId, status: "ready", url: objectUrl });
       })
       .catch(() => {
         if (!cancelled) setAssetPreview({ assetId, status: "missing", url: "" });
       });
     return () => {
       cancelled = true;
-      if (preloader) {
-        preloader.onload = null;
-        preloader.onerror = null;
-      }
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [assetId, loadAsset]);
@@ -171,7 +151,7 @@ export function WebPreview({ item, interactive = false, loadAsset, onScreenshotR
     setCandidateIndex(readyAssetIndex >= 0 ? readyAssetIndex : (retainedIndex >= 0 ? retainedIndex : 0));
     setRetryRevision(0);
     setRecoveryPass(0);
-    setImageState(readyAssetIndex >= 0 || retainedIndex >= 0
+    setImageState(retainedIndex >= 0
       ? "ready"
       : (assetPending || candidates.length ? "loading" : "error"));
   }, [assetPending, candidateKey, candidates, currentAsset.status, currentAsset.url, loadedScreenshot]);
@@ -224,7 +204,7 @@ export function WebPreview({ item, interactive = false, loadAsset, onScreenshotR
             src={renderedScreenshot}
             alt={`Screenshot of ${item.title || domain}`}
             draggable="false"
-            loading="eager"
+            loading={interactive ? "eager" : "lazy"}
             decoding="async"
             referrerPolicy="no-referrer"
             onLoad={(event) => {

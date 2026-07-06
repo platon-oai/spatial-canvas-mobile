@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { animate, motion, useMotionTemplate, useMotionValue, useTransform } from "motion/react";
 import { SharedItemViewer } from "../components/SharedItemViewer.jsx";
 import { officePreviewGeometry } from "../import/renderOfficeDocument.js";
@@ -21,6 +29,13 @@ const opacityTransition = { duration: 0.38, ease: [0.16, 1, 0.3, 1] };
 const resizeCorners = ["nw", "ne", "se", "sw"];
 const DOCUMENT_SURFACE_WIDTH = 680;
 export const MARQUEE_SELECTION_SCALE = 1.075;
+const MemoizedSharedItemViewer = memo(SharedItemViewer);
+
+function useLatestCallback(callback) {
+  const callbackRef = useRef(callback);
+  callbackRef.current = callback;
+  return useCallback((...args) => callbackRef.current?.(...args), []);
+}
 
 export function authoredDocumentScale(viewportWidth) {
   const width = Math.max(1, Number(viewportWidth) || 1);
@@ -553,22 +568,72 @@ export function CanvasItemNode({
     y,
   ]);
 
-  const content = item.content || {};
-  const viewItem = {
-    ...item,
-    ...content,
-    type: item.kind,
-    x: item.pose.x,
-    y: item.pose.y,
-    width: "100%",
-    height: "100%",
-    color: preview || item.style?.color || "#fcfcfc",
-    glow: preview || item.style?.glowColor || item.style?.color || "transparent",
-    body: content.body || content.text || content.description || "",
-    excerpt: content.excerpt || content.description || content.body || content.text || "",
-    memberIds: content.memberIds || [],
-    peekColors: content.peekColors,
-  };
+  const viewItem = useMemo(() => {
+    const content = item.content || {};
+    return {
+      ...item,
+      ...content,
+      type: item.kind,
+      x: item.pose.x,
+      y: item.pose.y,
+      width: "100%",
+      height: "100%",
+      color: preview || item.style?.color || "#fcfcfc",
+      glow: preview || item.style?.glowColor || item.style?.color || "transparent",
+      body: content.body || content.text || content.description || "",
+      excerpt: content.excerpt || content.description || content.body || content.text || "",
+      memberIds: content.memberIds || [],
+      peekColors: content.peekColors,
+    };
+  }, [item, preview]);
+  const documentMotion = useMemo(() => ({
+    scale: documentScale,
+    x: documentX,
+    y: documentY,
+    stageHeight: documentStageHeight,
+  }), [documentScale, documentStageHeight, documentX, documentY]);
+  const imageMotion = useMemo(() => ({
+    width,
+    height,
+    scale: 1,
+    x: 0,
+    y: 0,
+  }), [height, width]);
+  const sharedAssetMotion = useMemo(() => ({
+    baseWidth: assetBaseWidth,
+    baseHeight: assetBaseHeight,
+    detailPreviewScale: detailAssetScale,
+    scale: assetScale,
+    x: assetX,
+    y: assetY,
+    stageHeight: assetStageHeight,
+  }), [
+    assetBaseHeight,
+    assetBaseWidth,
+    assetScale,
+    assetStageHeight,
+    assetX,
+    assetY,
+    detailAssetScale,
+  ]);
+  const sharedWebMotion = useMemo(() => ({
+    baseWidth: webBaseWidth,
+    baseHeight: webBaseHeight,
+    scale: webScale,
+    x: webX,
+    y: webY,
+  }), [webScale, webX, webY]);
+  const stableLoadAsset = useLatestCallback(onLoadAsset);
+  const stablePointerDown = useLatestCallback(onPointerDown);
+  const stableDoubleClick = useLatestCallback(onDoubleClick);
+  const stableOpenStack = useLatestCallback(onOpenStack);
+  const stableDetailUpdate = useLatestCallback(onDetailUpdate);
+  const stableDetailDelete = useLatestCallback(onDetailDelete);
+  const stableDetailDuplicate = useLatestCallback(onDetailDuplicate);
+  const stableDetailExport = useLatestCallback(onDetailExport);
+  const stableDetailMove = useLatestCallback(onDetailMove);
+  const stableOpenExternal = useLatestCallback(onOpenExternal);
+  const stableWebPreviewResolved = useLatestCallback(onWebPreviewResolved);
 
   const handleSelectionPointerEnter = (event) => {
     const pointer = {
@@ -642,7 +707,7 @@ export function CanvasItemNode({
       }}
     >
       <motion.div className="selection-visual" style={{ scale: selectionScale }}>
-        <SharedItemViewer
+        <MemoizedSharedItemViewer
           item={viewItem}
           selected={selected}
           dimmed={dimmed}
@@ -652,47 +717,22 @@ export function CanvasItemNode({
           detailOpen={detailOpen}
           detailReady={detailReady}
           interactive={target.interactive !== false}
-          documentMotion={{
-            scale: documentScale,
-            x: documentX,
-            y: documentY,
-            stageHeight: documentStageHeight,
-          }}
-          imageMotion={{
-            width,
-            height,
-            scale: 1,
-            x: 0,
-            y: 0,
-          }}
-          assetMotion={{
-            baseWidth: assetBaseWidth,
-            baseHeight: assetBaseHeight,
-            detailPreviewScale: detailAssetScale,
-            scale: assetScale,
-            x: assetX,
-            y: assetY,
-            stageHeight: assetStageHeight,
-          }}
-          webMotion={{
-            baseWidth: webBaseWidth,
-            baseHeight: webBaseHeight,
-            scale: webScale,
-            x: webX,
-            y: webY,
-          }}
+          documentMotion={documentMotion}
+          imageMotion={imageMotion}
+          assetMotion={sharedAssetMotion}
+          webMotion={sharedWebMotion}
           detailActionsHost={detailActionsHost}
-          loadAsset={onLoadAsset}
-          onPointerDown={onPointerDown}
-          onDoubleClick={onDoubleClick}
-          onOpenStack={onOpenStack}
-          onUpdate={onDetailUpdate}
-          onDelete={onDetailDelete}
-          onDuplicate={onDetailDuplicate}
-          onExport={onDetailExport}
-          onMove={onDetailMove}
-          onOpenExternal={onOpenExternal}
-          onWebPreviewResolved={onWebPreviewResolved}
+          loadAsset={stableLoadAsset}
+          onPointerDown={stablePointerDown}
+          onDoubleClick={stableDoubleClick}
+          onOpenStack={stableOpenStack}
+          onUpdate={stableDetailUpdate}
+          onDelete={stableDetailDelete}
+          onDuplicate={stableDetailDuplicate}
+          onExport={stableDetailExport}
+          onMove={stableDetailMove}
+          onOpenExternal={stableOpenExternal}
+          onWebPreviewResolved={stableWebPreviewResolved}
         />
         {selectionControls && (
           <SelectionCorners

@@ -87,7 +87,7 @@ const isEditableTarget = (target) => target instanceof HTMLElement && Boolean(ta
 const INITIAL_VIEWPORT_SIZE = Object.freeze({ width: 1728, height: 896 });
 const WORLD_PAGE_OVERSCAN = 0.5;
 const WHEEL_PAN_MULTIPLIER = 1.75;
-const WHEEL_ZOOM_SENSITIVITY = 0.0034;
+const WHEEL_ZOOM_SENSITIVITY = 0.00459;
 const MAX_IMPORTED_DOCUMENT_BYTES = 40 * 1024 * 1024;
 
 export function detailSurfaceColor(item) {
@@ -96,6 +96,12 @@ export function detailSurfaceColor(item) {
 }
 
 function scrollFullscreenDetail(host, deltaX, deltaY) {
+  const locksHorizontalScroll = Boolean(
+    host?.querySelector?.(".shared-document-stage, .shared-web-stage"),
+  );
+  const horizontalDelta = locksHorizontalScroll ? 0 : deltaX;
+  if (locksHorizontalScroll && host.scrollLeft) host.scrollLeft = 0;
+
   const officeFrame = host?.querySelector?.(
     "iframe.document-asset-frame:not(.google-document-frame)",
   );
@@ -108,7 +114,7 @@ function scrollFullscreenDetail(host, deltaX, deltaY) {
   } catch {
     // Cross-origin embeds keep their own native scrolling.
   }
-  host?.scrollBy?.({ left: deltaX, top: deltaY, behavior: "auto" });
+  host?.scrollBy?.({ left: horizontalDelta, top: deltaY, behavior: "auto" });
 }
 
 function cameraPageWindow(camera, viewport) {
@@ -376,6 +382,11 @@ export function App() {
     [itemById, selectedIds],
   );
   const activeDetailItem = detailPresenceId ? itemById.get(detailPresenceId) : null;
+  const integratedDetailHeader = Boolean(
+    activeDetailItem?.kind === "document"
+      && activeDetailItem?.content?.documentSource === "upload"
+      && ["docx", "pptx", "xlsx"].includes(activeDetailItem?.content?.documentFormat),
+  );
   const selectedKind = selectedItems.length === 1 ? selectedItems[0].kind : null;
   const selectedFolderMemberIds = useMemo(
     () => eligibleFolderMemberIds(items, selectedIds),
@@ -2763,6 +2774,7 @@ export function App() {
 
             <AppChrome
               detailOpen={Boolean(detailPresenceId || activeFolderId || expandedStackId || focusedIds.length)}
+              integratedDetailHeader={integratedDetailHeader}
               backLabel={detailPresenceId && activeFolderId
                 ? "Back to folder"
                 : detailPresenceId && expandedStackId
