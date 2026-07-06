@@ -90,6 +90,27 @@ const WHEEL_PAN_MULTIPLIER = 1.75;
 const WHEEL_ZOOM_SENSITIVITY = 0.0034;
 const MAX_IMPORTED_DOCUMENT_BYTES = 40 * 1024 * 1024;
 
+export function detailSurfaceColor(item) {
+  const importedArtifact = item?.kind === "document" && Boolean(item?.content?.documentSource);
+  return importedArtifact ? "#fff" : item?.style?.color || "#fcfcfc";
+}
+
+function scrollFullscreenDetail(host, deltaX, deltaY) {
+  const officeFrame = host?.querySelector?.(
+    "iframe.document-asset-frame:not(.google-document-frame)",
+  );
+  try {
+    const officeReader = officeFrame?.contentDocument?.querySelector?.(".office-reader-layer");
+    if (officeReader) {
+      officeReader.scrollBy({ left: deltaX, top: deltaY, behavior: "auto" });
+      return;
+    }
+  } catch {
+    // Cross-origin embeds keep their own native scrolling.
+  }
+  host?.scrollBy?.({ left: deltaX, top: deltaY, behavior: "auto" });
+}
+
 function cameraPageWindow(camera, viewport) {
   const visible = visibleWorldRect(camera, viewport);
   const overscan = {
@@ -1330,7 +1351,7 @@ export function App() {
         : null;
       if (detailScrollHost && !event.ctrlKey && !event.metaKey) {
         event.preventDefault();
-        detailScrollHost.scrollBy({ left: deltaX, top: deltaY, behavior: "auto" });
+        scrollFullscreenDetail(detailScrollHost, deltaX, deltaY);
         return;
       }
       const wheelMode = wheelRoutingMode({
@@ -2589,7 +2610,7 @@ export function App() {
                     width: fullscreenDetailTarget.width,
                     height: fullscreenDetailTarget.height,
                     opacity: detailBackdropOpacityMotion,
-                    backgroundColor: activeDetailItem.style?.color || "#fcfcfc",
+                    backgroundColor: detailSurfaceColor(activeDetailItem),
                   }}
                 />
               )}

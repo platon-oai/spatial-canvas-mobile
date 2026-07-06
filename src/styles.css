@@ -2344,7 +2344,7 @@ button:focus-visible,
   transition: none;
 }
 
-.shared-item-viewer.is-detail-ready .shared-document-surface {
+.shared-item-viewer[data-detail-interactive="true"] .shared-document-surface {
   pointer-events: auto;
 }
 
@@ -3684,7 +3684,13 @@ button:focus-visible,
   );
   text-align: left;
   text-shadow: 0 1px 8px rgba(255, 255, 255, 0.6);
+  opacity: 1;
+  transition: opacity 120ms cubic-bezier(0.22, 0.72, 0.18, 1);
   pointer-events: none;
+}
+
+.artifact-title-overlay.is-hidden {
+  opacity: 0;
 }
 
 .artifact-title-overlay.tone-dark {
@@ -4248,72 +4254,134 @@ button:focus-visible,
   }
 }
 
-/* Imported document reader
-   ------------------------
-   The board keeps its retained clipped preview. Once the fullscreen flight
-   settles, the retained page stream lies directly on the shared fullscreen
-   backdrop: no nested card, clipping shell, reader backdrop, or scrollbar. */
-.world-item.is-detail-open.is-detail-ready:has(.document-asset-stage) .selection-visual,
-.world-item.is-detail-open.is-detail-ready:has(.document-asset-stage) .shared-item-viewer,
-.world-item.is-detail-open.is-detail-ready:has(.document-asset-stage) .spatial-item,
-.world-item.is-detail-open.is-detail-ready .item-document:has(.document-asset-stage),
-.document-asset-stage.is-detail-ready,
-.document-asset-stage.is-detail-ready .document-asset-surface.is-reader,
-.document-asset-stage.is-detail-ready .document-asset-frame {
+/* Retained Office readers
+   -----------------------
+   Office cards keep one iframe from board preview through detail. The board
+   owns the clipped/translated preview; the settled detail owns one white
+   viewport-sized reader stream. No wrapper changes color or animates layout,
+   so the shared-element flight cannot expose a transparent or grey frame. */
+.document-asset-stage,
+.document-asset-surface,
+.document-asset-frame,
+.document-asset-status {
+  border-color: transparent;
+  background-color: #fff !important;
+}
+
+.document-asset-stage {
+  isolation: isolate;
+  transition: none !important;
+}
+
+.document-asset-surface {
+  backface-visibility: hidden;
+  transition: none !important;
+  will-change: transform, opacity;
+  -webkit-backface-visibility: hidden;
+}
+
+.document-asset-frame {
+  color-scheme: light;
+  backface-visibility: hidden;
+  transition: opacity 120ms cubic-bezier(0.22, 0.72, 0.18, 1) !important;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Preview geometry remains a finite card. Its retained surface may be larger
+   than the card, but only the stage clips it while Motion owns the transform. */
+.document-asset-stage[data-view-mode="preview"],
+.document-asset-stage[data-view-mode="preview"] .document-asset-surface.is-preview {
+  overflow: hidden;
+}
+
+/* Keep the canvas underneath every Office transition the same white as the
+   iframe. This includes the opening and reverse flights, not just settle. */
+.canvas-world:has(> .world-item.is-detail-viewer .document-asset-stage:is(.format-docx, .format-xlsx, .format-pptx))
+  > .detail-color-backdrop {
+  background-color: #fff !important;
+}
+
+.world-item.is-detail-viewer:has(.document-asset-stage:is(.format-docx, .format-xlsx, .format-pptx))
+  :is(.shared-item-viewer, .spatial-item, .item-document, .document-asset-stage, .document-asset-surface, .document-asset-frame) {
   border-radius: 0 !important;
+  background-color: #fff !important;
+  box-shadow: none !important;
 }
 
-.world-item.is-detail-open.is-detail-ready:has(.document-asset-stage) .selection-visual,
-.world-item.is-detail-open.is-detail-ready:has(.document-asset-stage) .shared-item-viewer,
-.world-item.is-detail-open.is-detail-ready:has(.document-asset-stage) .spatial-item,
-.world-item.is-detail-open.is-detail-ready .item-document:has(.document-asset-stage),
-.document-asset-stage.is-detail-ready,
-.document-asset-stage.is-detail-ready .document-asset-surface.is-reader {
-  overflow: visible !important;
-  background: transparent !important;
+.world-item.is-detail-viewer:has(.document-asset-stage:is(.format-docx, .format-xlsx, .format-pptx))
+  :is(.shared-item-viewer, .spatial-item, .item-document) {
+  transition-property: opacity !important;
 }
 
-.world-item.is-detail-open.is-detail-ready:has(.document-asset-stage) .selection-visual::after {
+.world-item.is-detail-open.is-detail-ready:has(.document-asset-stage:is(.format-docx, .format-xlsx, .format-pptx))
+  .selection-visual::after {
   box-shadow: none;
   opacity: 0;
 }
 
-.world-item.is-detail-open.is-detail-ready .item-document:has(.document-asset-stage) {
-  overflow: auto !important;
-  overscroll-behavior: contain;
+/* The fullscreen shell is a stable viewport. Same-origin Office readers fill
+   it edge to edge and own native scrolling inside their retained iframe, so
+   the host never introduces a competing scroll offset during a FLIP. */
+.world-item.is-detail-open.is-detail-ready
+  .item-document:has(.document-asset-stage:is(.format-docx, .format-xlsx, .format-pptx)) {
+  width: 100%;
+  height: 100%;
+  overflow: hidden !important;
   scrollbar-width: none;
-  touch-action: pan-y;
-  -webkit-overflow-scrolling: touch;
+  touch-action: auto;
 }
 
-.world-item.is-detail-open.is-detail-ready .item-document:has(.document-asset-stage)::-webkit-scrollbar {
+.world-item.is-detail-open.is-detail-ready
+  .item-document:has(.document-asset-stage:is(.format-docx, .format-xlsx, .format-pptx))::-webkit-scrollbar {
   display: none;
   width: 0;
   height: 0;
 }
 
-.document-asset-stage.is-detail-ready {
-  width: max(100%, var(--reader-width, 100%));
-  height: max(100%, var(--reader-height, 100%));
-  min-height: 100%;
-  overflow: visible !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-}
-
-.document-asset-stage.is-detail-ready .document-asset-surface.is-reader {
-  position: absolute;
-  inset: 0;
-  overflow: visible !important;
-  border-radius: 0 !important;
-  background: transparent !important;
-  will-change: auto;
-}
-
-.document-asset-stage.is-detail-ready .document-asset-frame {
+/* The retained iframe matches the installed fullscreen shell. Each Office
+   reader owns its native full-surface scroll stream; XLSX keeps two-axis grid
+   navigation while DOCX/PPTX remain vertical reading surfaces. */
+.document-asset-stage.is-detail-ready:is(.format-docx, .format-xlsx, .format-pptx) {
+  position: relative;
   min-width: 100%;
   min-height: 100%;
-  background: transparent;
+  overflow: hidden;
+  border-radius: 0 !important;
+}
+
+.document-asset-stage.is-detail-ready:is(.format-docx, .format-xlsx, .format-pptx)
+  .document-asset-surface.is-reader {
+  position: absolute;
+  inset: 0 auto auto 0;
+  min-width: 100%;
+  min-height: 100%;
+  overflow: hidden;
+  border-radius: 0 !important;
+}
+
+.document-asset-stage.is-detail-ready:is(.format-docx, .format-xlsx, .format-pptx)
+  .document-asset-frame {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 100%;
+  min-height: 100%;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0 !important;
+}
+
+.document-asset-stage.is-detail-ready.format-xlsx,
+.document-asset-stage.is-detail-ready.format-xlsx .document-asset-surface.is-reader,
+.document-asset-stage.is-detail-ready.format-xlsx .document-asset-frame {
+  min-width: 100%;
+  min-height: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .document-asset-frame {
+    transition: none !important;
+  }
 }
 
 /* Fullscreen actions belong to the viewport, never to transformed content. */

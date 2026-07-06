@@ -67,15 +67,25 @@ describe("settled mobile detail surface", () => {
     expect(canvasItemNode).not.toContain("availableReaderWidth");
     expect(canvasItemNode).not.toContain("[width, detailProgress]");
     expect(canvasItemNode).toContain("const documentX = useMotionValue(0)");
-    expect(canvasItemNode).toContain("Math.min(1, currentWidth / Math.max(1, assetBaseWidth))");
-    expect(canvasItemNode).toContain("(currentWidth - assetBaseWidth * currentScale) / 2");
+    expect(canvasItemNode).toContain("importedArtifactFlightScale");
+    expect(canvasItemNode).toContain("if (detailPresent && detailAssetScale != null)");
+    expect(canvasItemNode).toContain("const assetX = useMotionValue(0)");
+    expect(canvasItemNode).not.toContain("[width, height, detailProgress]");
+  });
+
+  it("keeps imported artifacts on one white retained surface", () => {
+    expect(app).toContain("detailSurfaceColor(activeDetailItem)");
+    expect(app).toContain('return importedArtifact ? "#fff"');
+    expect(canvasItemNode).toContain("boardCoverScale * visibleOuterScale");
   });
 
   it("keeps the settled editor layout mounted until the reverse flight ends", () => {
     expect(canvasItemNode).not.toContain("if (!detailOpen) setDetailReady(false)");
-    expect(canvasItemNode).toContain("setDetailReady(false);\n            detailExitCompleteRef.current?.()");
-    expect(sharedViewer).toContain("const authoredEditorReady = Boolean(detailReady)");
-    expect(sharedViewer).toContain("interactive={authoredEditorReady}");
+    expect(canvasItemNode).toContain("previousDetailState.present && !detailPresent");
+    expect(canvasItemNode).toContain("setDetailReady(false);\n        layoutCompleteRef.current?.(item.id)");
+    expect(canvasItemNode).toContain("detailExitCompleteRef.current?.()");
+    expect(sharedViewer).toContain("const detailInteractive = Boolean(detailReady && detailOpen)");
+    expect(sharedViewer).toContain("interactive={detailInteractive}");
   });
 
   it("retains exactly one Notion editor component across board and detail", () => {
@@ -98,6 +108,8 @@ describe("settled mobile detail surface", () => {
   it("routes fullscreen wheel input to the active artifact scroll owner", () => {
     expect(app).toContain('viewport.querySelector(');
     expect(app).toContain('[data-detail-scroll-region="true"] > :is(.item-document, .item-note, .item-web)');
-    expect(app).toContain('detailScrollHost.scrollBy({ left: deltaX, top: deltaY, behavior: "auto" })');
+    expect(app).toContain('scrollFullscreenDetail(detailScrollHost, deltaX, deltaY)');
+    expect(app).toContain('querySelector?.(".office-reader-layer")');
+    expect(app).toContain('officeReader.scrollBy({ left: deltaX, top: deltaY, behavior: "auto" })');
   });
 });

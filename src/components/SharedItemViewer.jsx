@@ -52,7 +52,7 @@ function SharedImageSurface({ item, imageMotion }) {
   );
 }
 
-function SharedWebSurface({ item, detailReady, interactive, webMotion, loadAsset, onScreenshotResolved }) {
+function SharedWebSurface({ item, detailPresent, interactive, webMotion, loadAsset, onScreenshotResolved }) {
   const [overlayTone, setOverlayTone] = useState(item.artifactTone === "dark" ? "dark" : "light");
   const domain = webClipDisplayUrl(item);
 
@@ -77,7 +77,7 @@ function SharedWebSurface({ item, detailReady, interactive, webMotion, loadAsset
           onToneChange={setOverlayTone}
         />
       </motion.div>
-      {!detailReady && <ArtifactTitleOverlay title={domain} tone={overlayTone} />}
+      <ArtifactTitleOverlay title={domain} tone={overlayTone} visible={!detailPresent} />
     </div>
   );
 }
@@ -118,15 +118,43 @@ export function SharedItemViewer({
   const importedDocument = kind === "document" && Boolean(item.documentSource);
   const authoredDocument = kind === "note" || (kind === "document" && !importedDocument);
   const externalUrl = kind === "web" ? item.url : item.sourceUrl;
+  const artifactFormat = importedDocument
+    ? item.documentSource === "google"
+      ? "drive"
+      : item.documentFormat || "document"
+    : kind;
+  const artifactLayout = ({
+    docx: "pages",
+    xlsx: "workbook",
+    pptx: "slides",
+    drive: "embedded",
+    web: "capture",
+    image: "image",
+    note: "editor",
+    document: "editor",
+  })[artifactFormat] || "card";
+  const viewerPhase = !detailPresent
+    ? "board"
+    : !detailOpen
+      ? "closing"
+      : detailReady
+        ? "ready"
+        : "opening";
   // Authored editor attributes stay stable through the reverse flight. The
-  // closing shell blocks pointer input in CSS, then detailReady is cleared at
-  // the exact board endpoint so contentEditable/inert never mutate on frame 1.
-  const authoredEditorReady = Boolean(detailReady);
+  // closing shell blocks pointer input immediately while its DOM stays mounted
+  // until the exact board endpoint.
   const detailInteractive = Boolean(detailReady && detailOpen);
+  const detailChromeVisible = detailInteractive;
 
   return (
     <div
-      className={`shared-item-viewer ${detailReady ? "is-detail-ready" : ""}`}
+      className={`shared-item-viewer artifact-${kind} artifact-format-${artifactFormat} artifact-layout-${artifactLayout} ${detailReady ? "is-detail-ready" : ""}`}
+      data-artifact-kind={kind}
+      data-artifact-format={artifactFormat}
+      data-artifact-layout={artifactLayout}
+      data-viewer-phase={viewerPhase}
+      data-detail-interactive={detailInteractive ? "true" : "false"}
+      data-retained-surface="true"
       data-detail-scroll-region={detailPresent ? "true" : undefined}
     >
       <ItemCard
@@ -142,7 +170,7 @@ export function SharedItemViewer({
         onOpenStack={onOpenStack}
       >
         {authoredDocument
-          ? <SharedDocumentSurface item={item} interactive={authoredEditorReady} documentMotion={documentMotion} onUpdate={onUpdate} />
+          ? <SharedDocumentSurface item={item} interactive={detailInteractive} documentMotion={documentMotion} onUpdate={onUpdate} />
           : importedDocument
             ? (
               <DocumentAssetSurface
@@ -156,9 +184,9 @@ export function SharedItemViewer({
             )
             : kind === "web"
               ? (
-                <SharedWebSurface
-                  item={item}
-                  detailReady={detailReady}
+                 <SharedWebSurface
+                   item={item}
+                   detailPresent={detailPresent}
                   interactive={detailInteractive}
                   webMotion={webMotion}
                   loadAsset={loadAsset}
@@ -170,12 +198,14 @@ export function SharedItemViewer({
             : undefined}
       </ItemCard>
 
-      {detailPresent && detailReady && detailOpen && kind === "image" && (
+      {detailPresent && kind === "image" && (
         <motion.aside
           className="image-detail-chrome"
           initial={false}
-          animate={{ opacity: detailReady ? 1 : 0 }}
-          transition={{ duration: detailReady ? 0.22 : 0.1, ease: "easeOut" }}
+          animate={{ opacity: detailChromeVisible ? 1 : 0 }}
+          transition={{ duration: detailChromeVisible ? 0.22 : 0.1, ease: "easeOut" }}
+          aria-hidden={detailChromeVisible ? undefined : true}
+          style={{ pointerEvents: detailChromeVisible ? "auto" : "none" }}
         >
           <div className="image-detail-palette" aria-label="Image palette">
             {(item.palette || ["#f7f7f4", "#c2c6c7", "#737f82", "#202526"]).slice(0, 5).map((color) => (
@@ -200,18 +230,20 @@ export function SharedItemViewer({
         />
       )}
 
-      {detailPresent && detailReady && detailOpen && detailActionsHost && createPortal(
+      {detailPresent && detailActionsHost && createPortal(
         <div
           className="detail-actions-anchor is-viewport-fixed"
+          inert={detailChromeVisible ? undefined : true}
+          aria-hidden={detailChromeVisible ? undefined : true}
           onPointerDown={(event) => event.stopPropagation()}
           onDoubleClick={(event) => event.stopPropagation()}
         >
           <motion.div
             className="detail-actions"
             initial={false}
-            animate={{ opacity: detailReady ? 1 : 0, y: detailReady ? 0 : 8 }}
-            transition={detailReady ? { duration: 0.16, ease: "easeOut" } : { duration: 0.08 }}
-            style={{ pointerEvents: detailReady ? "auto" : "none" }}
+            animate={{ opacity: detailChromeVisible ? 1 : 0, y: detailChromeVisible ? 0 : 8 }}
+            transition={detailChromeVisible ? { duration: 0.16, ease: "easeOut" } : { duration: 0.08 }}
+            style={{ pointerEvents: detailChromeVisible ? "auto" : "none" }}
           >
             {externalUrl && (
               <button

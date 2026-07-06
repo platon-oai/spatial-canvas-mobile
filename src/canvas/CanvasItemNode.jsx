@@ -27,6 +27,43 @@ export function authoredDocumentScale(viewportWidth) {
   return Math.max(0.04, width / DOCUMENT_SURFACE_WIDTH);
 }
 
+/**
+ * Scale the retained Office preview for a destination-bounds FLIP.
+ *
+ * The board preview already has a cover scale. When the destination shell is
+ * installed before paint, its outer FLIP scale becomes the new source
+ * matrix. Dividing the visible board scale by that matrix keeps the first
+ * rendered frame pixel-identical, then the preview rides one uniform outer
+ * transform for the rest of the flight. No nested progress-driven scale is
+ * needed, which avoids both curved content paths and per-frame iframe paint.
+ */
+export function importedArtifactFlightScale({
+  boardWidth,
+  boardHeight,
+  boardScale = 1,
+  selectionScale = 1,
+  destinationWidth,
+  destinationHeight,
+  baseWidth,
+  baseHeight,
+} = {}) {
+  const width = Math.max(1, Number(boardWidth) || 1);
+  const height = Math.max(1, Number(boardHeight) || 1);
+  const visibleOuterScale = Math.max(0.0001, Number(boardScale) || 1)
+    * Math.max(0.0001, Number(selectionScale) || 1);
+  const flipScale = Math.max(
+    width * visibleOuterScale / Math.max(1, Number(destinationWidth) || 1),
+    height * visibleOuterScale / Math.max(1, Number(destinationHeight) || 1),
+  );
+  const boardCoverScale = leadingEdgeCoverScale(
+    width,
+    height,
+    Math.max(1, Number(baseWidth) || 1),
+    Math.max(1, Number(baseHeight) || 1),
+  );
+  return boardCoverScale * visibleOuterScale / Math.max(0.0001, flipScale);
+}
+
 export function selectionPresentationScale({
   selectionEmphasized = false,
   detailPresent = false,
@@ -172,29 +209,34 @@ export function CanvasItemNode({
   const assetGeometry = officePreviewGeometry(item.content?.documentFormat);
   const assetBaseWidth = assetGeometry.width;
   const assetBaseHeight = assetGeometry.height;
+  const boardSelectionScale = selectionPresentationScale({ selectionEmphasized });
+  const detailAssetScale = detailTarget && detailUsesDestinationBounds
+    ? importedArtifactFlightScale({
+        boardWidth: target.width,
+        boardHeight: target.height,
+        boardScale: target.scale,
+        selectionScale: boardSelectionScale,
+        destinationWidth: detailTarget.width,
+        destinationHeight: detailTarget.height,
+        baseWidth: assetBaseWidth,
+        baseHeight: assetBaseHeight,
+      })
+    : null;
   const assetScale = useTransform(
-    [width, height, detailProgress],
-    ([currentWidth, currentHeight, progress]) => {
-      const coverScale = leadingEdgeCoverScale(
+    [width, height],
+    ([currentWidth, currentHeight]) => {
+      if (detailPresent && detailAssetScale != null) return detailAssetScale;
+      return leadingEdgeCoverScale(
         currentWidth,
         currentHeight,
         assetBaseWidth,
         assetBaseHeight,
       );
-      const readingScale = Math.min(1, currentWidth / Math.max(1, assetBaseWidth));
-      return coverScale + (readingScale - coverScale) * progress;
     },
   );
-  // Board previews remain top/left anchored while cover-scaled. As the
-  // reader reaches its native-width cap, the same retained page glides into
-  // the centered fullscreen column without a settle-frame jump.
-  const assetX = useTransform(
-    [width, assetScale],
-    ([currentWidth, currentScale]) => Math.max(
-      0,
-      (currentWidth - assetBaseWidth * currentScale) / 2,
-    ),
-  );
+  // Cover-scaled board previews are leading-edge anchored. Keeping that
+  // anchor fixed through the outer FLIP removes a second animated transform.
+  const assetX = useMotionValue(0);
   const assetY = useMotionValue(0);
   const assetStageHeight = height;
   const webBaseWidth = 800;
@@ -379,19 +421,28 @@ export function CanvasItemNode({
           if (detailOpen) {
             setDetailReady(true);
           } else {
-            x.jump(target.x);
-            y.jump(target.y);
-            width.jump(target.width);
-            height.jump(target.height);
-            scale.jump(target.scale);
-            selectionScale.jump(boardSelectionScale);
-            clipRight.jump(0);
-            clipBottom.jump(0);
-            detailProgress.jump(0);
-            setDetailReady(false);
+            // Keep the exact FLIP endpoint until React clears detail presence.
+            // The next layout transaction switches both the inner retained
+            // preview and these outer values back to board geometry before
+            // the browser can paint either state independently.
             detailExitCompleteRef.current?.();
           }
         });
+        return;
+      }
+
+      if (previousDetailState.present && !detailPresent) {
+        x.jump(target.x);
+        y.jump(target.y);
+        width.jump(target.width);
+        height.jump(target.height);
+        scale.jump(target.scale);
+        selectionScale.jump(selectionPresentationScale({ selectionEmphasized }));
+        clipRight.jump(0);
+        clipBottom.jump(0);
+        detailProgress.jump(0);
+        setDetailReady(false);
+        layoutCompleteRef.current?.(item.id);
         return;
       }
 
@@ -571,7 +622,7 @@ export function CanvasItemNode({
         height,
         opacity,
         scale,
-        borderRadius: detailPresent ? itemRadius : animatedRadius,
+        borderRadius: detailPresent && detailUsesDestinationBounds ? 0 : animatedRadius,
         clipPath: detailPresent && detailUsesDestinationBounds
           ? clipPath
           : isContainerKind(item) && (folderOpen || folderTransitioning)
@@ -617,6 +668,7 @@ export function CanvasItemNode({
           assetMotion={{
             baseWidth: assetBaseWidth,
             baseHeight: assetBaseHeight,
+            detailPreviewScale: detailAssetScale,
             scale: assetScale,
             x: assetX,
             y: assetY,
